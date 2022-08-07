@@ -1,0 +1,27 @@
+apiVersion: config.kubernetes.io/v1
+kind: ResourceList
+items:
+  - apiVersion: myDevOpsTeam
+    kind: SillyConfigMapGenerator
+    metadata:
+      annotations:
+        config.kubernetes.io/function: "exec: \n path: ./plugins/silly-generator.sh \n"
+        config.kubernetes.io/local-config: 'true'
+        config.kubernetes.io/index: '0'
+        internal.config.kubernetes.io/index: '0'
+        internal.config.kubernetes.io/annotations-migration-resource-id: '0'
+        internal.config.kubernetes.io/id: '1'
+        config.k8s.io/id: '1'
+    name: whatever
+    value: Bienvenue
+    enableRisky: true
+functionConfig:
+  apiVersion: myDevOpsTeam
+  kind: SillyConfigMapGenerator
+  metadata:
+    annotations:
+      config.kubernetes.io/function: "exec: \n path: ./plugins/silly-generator.sh \n"
+      config.kubernetes.io/local-config: 'true'
+      name: whatever
+  value: Bienvenue2
+  enableRisky: true

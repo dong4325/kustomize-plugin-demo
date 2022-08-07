@@ -1,0 +1,87 @@
+apiVersion: config.kubernetes.io/v1
+kind: ResourceList
+items:
+  - apiVersion: apps.kruise.io/v1alpha1
+    kind: ResourceDistribution
+    metadata:
+      annotations:
+        internal.config.kubernetes.io/needsHashSuffix: enabled
+        kustomize.config.k8s.io/id: |
+         group: apps.kruise.io
+         kind: ResourceDistribution
+         name: sample
+         version: v1alpha1
+        config.kubernetes.io/index: '0'
+        internal.config.kubernetes.io/index: '0'
+        internal.config.kubernetes.io/annotations-migration-resource-id: '0'
+        internal.config.kubernetes.io/id: '1'
+        config.k8s.io/id: '1'
+      labels:
+        app: hello
+      name: sample
+    spec:
+      resource:
+        apiVersion: v1
+        data:
+          game.properties: |
+            enemy.types=aliens,monsters
+            player.maximum-lives=5
+          player_initial_lives: "3"
+          ui_properties_file_name: user-interface.properties
+          user-interface.properties: |
+            color.good=purple
+            color.bad=yellow
+            allow.textmode=true
+        kind: ConfigMap
+        metadata:
+          annotations:
+            internal.config.kubernetes.io/needsHashSuffix: enabled
+          name: game-demo
+      targets:
+        excludedNamespaces:
+          list:
+            - name: ns-3
+        includedNamespaces:
+          list:
+            - name: ns-1
+            - name: ns-4
+        namespaceLabelSelector:
+          matchLabels:
+            group: test
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      annotations:
+        internal.config.kubernetes.io/needsHashSuffix: enabled
+        kustomize.config.k8s.io/id: |
+          kind: Service
+          name: the-service
+          version: v1
+        config.kubernetes.io/index: '1'
+        internal.config.kubernetes.io/index: '1'
+        internal.config.kubernetes.io/annotations-migration-resource-id: '1'
+        internal.config.kubernetes.io/id: '2'
+        config.k8s.io/id: '2'
+        labels:
+          app: hello
+        name: the-service
+    spec:
+      ports:
+        - port: 8666
+          protocol: TCP
+          targetPort: 8080
+      selector:
+        app: hello
+      type: LoadBalancer
+functionConfig:
+  apiVersion: myDevOpsTeam
+  kind: SillyConfigMapGenerator
+  metadata:
+    annotations:
+      config.kubernetes.io/function: "container: \n image: example.docker.com/my-functions/valueannotator:1.0.0 \n"
+      config.kubernetes.io/local-config: 'true'
+    name: whatever
+  value: 'important-data'
+  spec:
+    altGreeting: Bienvenue
+    enableRisky: true
