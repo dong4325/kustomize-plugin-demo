@@ -77,17 +77,39 @@ type TargetsArgs struct {
 const tmpl = `
 apiVersion: apps.kruise.io/v1alpha1
 kind: ResourceDistributionGenerator
-metadata:
-  name: rdname
 spec:
   resource:
     apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: cmname
 `
 
-// 设置了空以后就没法添加内容了。。taegets:
+// Field names
+const (
+	AnnotationsField      = "annotations"
+	APIVersionField       = "apiVersion"
+	KindField             = "kind"
+	MetadataField         = "metadata"
+	DataField             = "data"
+	BinaryDataField       = "binaryData"
+	NameField             = "name"
+	NamespaceField        = "namespace"
+	LabelsField           = "labels"
+	ListField             = "list"
+	AllNamespacesField    = "allNamespaces"
+	ImmutableField        = "immutable"
+	TypeField             = "type"
+	MatchExpressionsField = "matchExpressions"
+	KeyField              = "key"
+	OperatorField         = "operator"
+	ValuesField           = "values"
+)
+
+var resourcePath = []string{"spec", "resource"}
+var metadataPath = []string{"spec", "resource", "metadata"}
+var targetsPath = []string{"spec", "targets"}
+var includedNamespacesPath = []string{"spec", "targets", "includedNamespaces"}
+var excludedNamespacesPath = []string{"spec", "targets", "excludedNamespaces"}
+var NamespaceLabelSelectorPath = []string{"spec", "targets", "namespaceLabelSelector"}
+var MatchLabelsPath = []string{"spec", "targets", "namespaceLabelSelector", "matchLabels"}
 
 func setLabelsAndAnnotations(
 	rn *yaml.RNode, opts *types.GeneratorOptions) error {
@@ -117,15 +139,15 @@ func setResourceLabelsAndAnnotations(
 	for _, k := range yaml.SortedMapKeys(opts.Labels) {
 		v := opts.Labels[k]
 		if _, err := rn.Pipe(
-			yaml.PathGetter{Path: []string{"spec", "resource", "metadata"}, Create: yaml.MappingNode},
-			yaml.FieldSetter{Name: "labels", Value: yaml.NewStringRNode(v)}); err != nil {
+			yaml.PathGetter{Path: metadataPath, Create: yaml.MappingNode},
+			yaml.FieldSetter{Name: LabelsField, Value: yaml.NewStringRNode(v)}); err != nil {
 			return err
 		}
 	}
 	for _, k := range yaml.SortedMapKeys(opts.Annotations) {
 		v := opts.Annotations[k]
-		if _, err := rn.Pipe(yaml.PathGetter{Path: []string{"spec", "resource", "metadata"}, Create: yaml.MappingNode},
-			yaml.FieldSetter{Name: "annotations", Value: yaml.NewStringRNode(v)}); err != nil {
+		if _, err := rn.Pipe(yaml.PathGetter{Path: metadataPath, Create: yaml.MappingNode},
+			yaml.FieldSetter{Name: AnnotationsField, Value: yaml.NewStringRNode(v)}); err != nil {
 			return err
 		}
 	}
@@ -139,19 +161,26 @@ func setTargets(rn *yaml.RNode, args *TargetsArgs) error {
 	v := args.IncludedNamespaces
 	if v != nil {
 		if _, err := rn.Pipe(
-			yaml.PathGetter{Path: []string{"spec", "targets", "includedNamespaces"},
+			yaml.PathGetter{
+				Path:   includedNamespacesPath,
 				Create: yaml.MappingNode},
-			yaml.FieldSetter{Name: "list", Value: yaml.NewListRNode(v...)}); err != nil {
+			yaml.FieldSetter{
+				Name:  ListField,
+				Value: yaml.NewListRNode(v...)}); err != nil {
 			return err
 		}
 	}
 
 	v = args.ExcludedNamespaces
 	if v != nil {
-		if _, err := rn.Pipe(
-			yaml.PathGetter{Path: []string{"spec", "targets", "excludedNamespaces"},
+		_, err := rn.Pipe(
+			yaml.PathGetter{
+				Path:   excludedNamespacesPath,
 				Create: yaml.MappingNode},
-			yaml.FieldSetter{Name: "list", Value: yaml.NewListRNode(v...)}); err != nil {
+			yaml.FieldSetter{
+				Name:  ListField,
+				Value: yaml.NewListRNode(v...)})
+		if err != nil {
 			return err
 		}
 	}
@@ -164,9 +193,13 @@ func setTargets(rn *yaml.RNode, args *TargetsArgs) error {
 			Value: allNamespaces,
 			Tag:   yaml.NodeTagBool,
 		}
-		if _, err := rn.Pipe(yaml.PathGetter{Path: []string{"spec", "targets"},
-			Create: yaml.MappingNode},
-			yaml.FieldSetter{Name: "allNamespaces", Value: yaml.NewRNode(n)}); err != nil {
+		if _, err := rn.Pipe(
+			yaml.PathGetter{
+				Path:   targetsPath,
+				Create: yaml.MappingNode},
+			yaml.FieldSetter{
+				Name:  AllNamespacesField,
+				Value: yaml.NewRNode(n)}); err != nil {
 			return err
 		}
 	}
@@ -187,7 +220,7 @@ func setNamespaceLabelSelector(
 	for _, k := range yaml.SortedMapKeys(sel.MatchLabels) {
 		v := sel.MatchLabels[k]
 		if _, err := rn.Pipe(
-			yaml.PathGetter{Path: []string{"spec", "targets", "namespaceLabelSelector", "matchLabels"},
+			yaml.PathGetter{Path: MatchLabelsPath,
 				Create: yaml.MappingNode},
 			yaml.FieldSetter{Name: k, Value: yaml.NewStringRNode(v)}); err != nil {
 			return err
@@ -207,14 +240,14 @@ func setNamespaceLabelSelector(
 		//}
 		node.Content = append(node.Content, &yaml.Node{
 			Kind:  yaml.ScalarNode,
-			Value: "key",
+			Value: KeyField,
 		}, &yaml.Node{
 			Kind:  yaml.ScalarNode,
 			Value: req.Key,
 		})
 		node.Content = append(node.Content, &yaml.Node{
 			Kind:  yaml.ScalarNode,
-			Value: "operator",
+			Value: OperatorField,
 		}, &yaml.Node{
 			Kind:  yaml.ScalarNode,
 			Value: string(req.Operator),
@@ -231,15 +264,15 @@ func setNamespaceLabelSelector(
 
 		node.Content = append(node.Content, &yaml.Node{
 			Kind:  yaml.ScalarNode,
-			Value: "values",
+			Value: ValuesField,
 		}, seq)
 
 		matchSeq.Content = append(matchSeq.Content, node)
 
 	}
-	if _, err := rn.Pipe(yaml.PathGetter{Path: []string{"spec", "targets", "namespaceLabelSelector"},
+	if _, err := rn.Pipe(yaml.PathGetter{Path: NamespaceLabelSelectorPath,
 		Create: yaml.MappingNode},
-		yaml.FieldSetter{Name: "matchExpressions", Value: yaml.NewRNode(matchSeq)}); err != nil {
+		yaml.FieldSetter{Name: MatchExpressionsField, Value: yaml.NewRNode(matchSeq)}); err != nil {
 		return err
 	}
 
@@ -257,9 +290,9 @@ func setImmutable(
 			Value: "true",
 			Tag:   yaml.NodeTagBool,
 		}
-		_, err := rn.Pipe(yaml.PathGetter{Path: []string{"spec", "resource"},
-			Create: yaml.MappingNode},
-			yaml.FieldSetter{Name: "immutable", Value: yaml.NewRNode(n)})
+		_, err := rn.Pipe(
+			yaml.PathGetter{Path: resourcePath, Create: yaml.MappingNode},
+			yaml.FieldSetter{Name: ImmutableField, Value: yaml.NewRNode(n)})
 		if err != nil {
 			return err
 		}
@@ -332,7 +365,7 @@ func loadMapIntoConfigMapData2(m map[string]string, rn *yaml.RNode) error {
 	for _, k := range yaml.SortedMapKeys(m) {
 		fldName, vrN := makeConfigMapValueRNode(m[k])
 		if _, err := rn.Pipe(
-			yaml.LookupCreate(yaml.MappingNode, "spec", "resource", fldName),
+			yaml.LookupCreate(yaml.MappingNode, append(resourcePath, fldName)...),
 			yaml.SetField(k, vrN)); err != nil {
 			return err
 		}
@@ -368,6 +401,83 @@ func loadMapIntoSecretData(m map[string]string, rn *yaml.RNode) error {
 	return nil
 }
 
+func setResourceKind(
+	rn *yaml.RNode, kind string) error {
+	if kind == "" {
+		return nil
+	}
+	err := rn.PipeE(yaml.PathGetter{Path: resourcePath, Create: yaml.MappingNode},
+		yaml.FieldSetter{Name: KindField, Value: yaml.NewStringRNode(kind)})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func setResource(rn *yaml.RNode, args *ResourceArgs) error {
+	// setResourceName
+	if args.ResourceName == "" {
+		return errors.Errorf("a ResourceDistribution must have a resource name ")
+	}
+	err := rn.PipeE(yaml.PathGetter{Path: metadataPath, Create: yaml.MappingNode},
+		yaml.FieldSetter{Name: NameField, Value: yaml.NewStringRNode(args.ResourceName)})
+	if err != nil {
+		return err
+	}
+
+	// setResourceLabelsAndAnnotations
+	if err = setResourceLabelsAndAnnotations(rn, args.ResourceOptions); err != nil {
+		return err
+	}
+
+	// setResource()
+
+	ldr, err := loader.NewLoader(
+		loader.RestrictionRootOnly,
+		"./", filesys.MakeFsOnDisk())
+	kvLdr := kv.NewLoader(ldr, provider.NewDefaultDepProvider().GetFieldValidator())
+
+	m, err := makeValidatedDataMap(kvLdr, args.ResourceName, args.KvPairSources)
+	if err != nil {
+		return err
+	}
+
+	if err = setResourceKind(rn, args.ResourceKind); err != nil {
+		return err
+	}
+
+	if args.ResourceKind == "ConfigMap" {
+		if err = loadMapIntoConfigMapData2(m, rn); err != nil {
+			return err
+		}
+	} else if args.ResourceKind == "Secret" {
+		t := "Opaque"
+		if args.Type != "" {
+			t = args.Type
+		}
+		if _, err := rn.Pipe(
+			yaml.PathGetter{Path: resourcePath, Create: yaml.MappingNode},
+			yaml.FieldSetter{Name: TypeField, Value: yaml.NewStringRNode(t)}); err != nil {
+			return err
+		}
+
+		if err = loadMapIntoSecretData(m, rn); err != nil {
+			return err
+		}
+	} else {
+		//return nil, err
+		// 返回错误
+	}
+	// setImmutable
+	err = setImmutable(rn, args.ResourceOptions)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func main() {
 	config := new(resourceDistributionPlugin)
 	fn := func(items []*yaml.RNode) ([]*yaml.RNode, error) {
@@ -377,6 +487,9 @@ func main() {
 		}
 
 		// setName
+		if config.ObjectMeta.Name == "" {
+			return nil, errors.Errorf("a ResourceDistribution must have a name ")
+		}
 		err = rn.PipeE(yaml.SetK8sName(config.Name))
 		if err != nil {
 			return nil, err
@@ -386,65 +499,12 @@ func main() {
 			return nil, err
 		}
 
-		// setResourceName
-		err = rn.PipeE(
-			yaml.PathGetter{Path: []string{"spec", "resource", "metadata"}, Create: yaml.MappingNode},
-			yaml.FieldSetter{Name: "name", Value: yaml.NewStringRNode(config.ResourceName)})
+		err = setResource(rn, &config.ResourceArgs)
 		if err != nil {
 			return nil, err
-		}
-
-		// setResourceLabelsAndAnnotations
-		err = setResourceLabelsAndAnnotations(rn, config.ResourceOptions)
-		if err != nil {
-			return nil, err
-		}
-
-		// setResource()
-
-		ldr, err := loader.NewLoader(
-			loader.RestrictionRootOnly,
-			"./", filesys.MakeFsOnDisk())
-		kvLdr := kv.NewLoader(ldr, provider.NewDefaultDepProvider().GetFieldValidator())
-
-		m, err := makeValidatedDataMap(kvLdr, config.Name, config.KvPairSources)
-		if err != nil {
-			return nil, err
-		}
-
-		if config.ResourceKind == "ConfigMap" {
-			if err = loadMapIntoConfigMapData2(m, rn); err != nil {
-				return nil, err
-			}
-		} else if config.ResourceKind == "Secret" {
-			t := "Opaque"
-			if config.Type != "" {
-				t = config.Type
-			}
-			if _, err := rn.Pipe(
-				yaml.PathGetter{Path: []string{"spec", "resource"},
-					Create: yaml.MappingNode},
-				yaml.FieldSetter{
-					Name:  "type",
-					Value: yaml.NewStringRNode(t)}); err != nil {
-				return nil, err
-			}
-
-			if err = loadMapIntoSecretData(m, rn); err != nil {
-				return nil, err
-			}
-		} else {
-			//return nil, err
-			// 返回错误
 		}
 
 		err = setTargets(rn, &config.TargetsArgs)
-		if err != nil {
-			return nil, err
-		}
-
-		// setImmutable
-		err = setImmutable(rn, config.ResourceOptions)
 		if err != nil {
 			return nil, err
 		}
