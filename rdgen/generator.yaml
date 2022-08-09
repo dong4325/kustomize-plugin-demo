@@ -64,9 +64,3 @@ functionConfig:
     namespaceLabelSelector:
       matchLabels:
         group: "test"
-      matchExpressions:
-        - key: exc
-          operator: NotIn
-          values:
-            - abc
-            - efg
