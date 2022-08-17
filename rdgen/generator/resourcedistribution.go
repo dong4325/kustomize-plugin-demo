@@ -65,7 +65,11 @@ func MakeResourceDistribution(config *ResourceDistributionPlugin) (*yaml.RNode, 
 		return nil, err
 	}
 
-	err = setLabelsAndAnnotations(rn, config.Options)
+	err = setLabelsOrAnnotations(rn, config.Options.Labels, metadataLabelsPath)
+	if err != nil {
+		return nil, err
+	}
+	err = setLabelsOrAnnotations(rn, config.Options.Annotations, metadataAnnotationsPath)
 	if err != nil {
 		return nil, err
 	}

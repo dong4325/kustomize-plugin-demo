@@ -1,8 +1,9 @@
 package main
 
 import (
-	"kustomize-plugin-demo/rdgen/generator"
 	"os"
+
+	"kustomize-plugin-demo/rdgen/generator"
 	"sigs.k8s.io/kustomize/kyaml/fn/framework"
 	"sigs.k8s.io/kustomize/kyaml/fn/framework/command"
 	"sigs.k8s.io/kustomize/kyaml/kio"
