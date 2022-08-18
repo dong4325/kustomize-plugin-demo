@@ -23,6 +23,7 @@ func main() {
 		return itemsOutput, nil
 	}
 
+	// TODO 看懂
 	p := framework.SimpleProcessor{Config: config, Filter: kio.FilterFunc(fn)}
 	cmd := command.Build(p, command.StandaloneDisabled, false)
 	//command.AddGenerateDockerfile(cmd)

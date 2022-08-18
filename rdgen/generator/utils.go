@@ -104,7 +104,10 @@ func setLabelsOrAnnotations(
 	return nil
 }
 
+// TODO 看懂代码
 func setData(rn *yaml.RNode, args *ResourceArgs) error {
+
+	// TODO 测试使用BASE后是否还能使用？
 	ldr, err := loader.NewLoader(loader.RestrictionRootOnly,
 		"./", filesys.MakeFsOnDisk())
 	kvLdr := kv.NewLoader(ldr, provider.NewDefaultDepProvider().GetFieldValidator())
@@ -238,6 +241,20 @@ func makeConfigMapValueRNode(s string) (field string, rN *yaml.RNode) {
 	return field, yaml.NewRNode(yN)
 }
 
+func loadMapIntoSecretData(m map[string]string, rn *yaml.RNode) error {
+	mapNode, err := rn.Pipe(yaml.LookupCreate(yaml.MappingNode, append(resourcePath, yaml.DataField)...))
+	if err != nil {
+		return err
+	}
+	for _, k := range yaml.SortedMapKeys(m) {
+		vrN := makeSecretValueRNode(m[k])
+		if _, err := mapNode.Pipe(yaml.SetField(k, vrN)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func loadMapIntoConfigMapData2(m map[string]string, rn *yaml.RNode) error {
 	for _, k := range yaml.SortedMapKeys(m) {
 		fldName, vrN := makeConfigMapValueRNode(m[k])
@@ -262,20 +279,6 @@ func makeSecretValueRNode(s string) *yaml.RNode {
 		yN.Style = yaml.LiteralStyle
 	}
 	return yaml.NewRNode(yN)
-}
-
-func loadMapIntoSecretData(m map[string]string, rn *yaml.RNode) error {
-	mapNode, err := rn.Pipe(yaml.LookupCreate(yaml.MappingNode, "spec", "resource", yaml.DataField))
-	if err != nil {
-		return err
-	}
-	for _, k := range yaml.SortedMapKeys(m) {
-		vrN := makeSecretValueRNode(m[k])
-		if _, err := mapNode.Pipe(yaml.SetField(k, vrN)); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func setTargets(rn *yaml.RNode, args *TargetsArgs) error {

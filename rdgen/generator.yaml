@@ -43,7 +43,7 @@ functionConfig:
       config.kubernetes.io/local-config: 'true'
     name: rdname
   resource:
-    resourceKind: ConfigMap
+    resourceKind: Secret
     resourceName: cmname
     files:
       - file.properties
