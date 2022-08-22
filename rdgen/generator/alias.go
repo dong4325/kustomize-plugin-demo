@@ -10,15 +10,8 @@ spec:
 
 // Field names
 const (
-	annotationsField      = "annotations"
-	apiVersionField       = "apiVersion"
 	kindField             = "kind"
-	metadataField         = "metadata"
-	dataField             = "data"
-	binaryDataField       = "binaryData"
 	nameField             = "name"
-	namespaceField        = "namespace"
-	labelsField           = "labels"
 	listField             = "list"
 	allNamespacesField    = "allNamespaces"
 	immutableField        = "immutable"

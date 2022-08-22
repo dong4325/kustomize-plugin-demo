@@ -3,6 +3,7 @@ package generator
 import (
 	"github.com/go-errors/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/kustomize/api/ifc"
 	"sigs.k8s.io/kustomize/api/kv"
 	"sigs.k8s.io/kustomize/api/loader"
 	"sigs.k8s.io/kustomize/api/provider"
@@ -52,7 +53,6 @@ func setResource(rn *yaml.RNode, args *ResourceArgs) error {
 	if err := setImmutable(rn, args.ResourceOptions); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -99,10 +99,7 @@ func setLabelsOrAnnotations(
 	return nil
 }
 
-// TODO 看懂代码
 func setData(rn *yaml.RNode, args *ResourceArgs) error {
-	// 尝试使用 BASE 后也可以使用
-
 	ldr, err := loader.NewLoader(loader.RestrictionRootOnly,
 		"./", filesys.MakeFsOnDisk())
 	kvLdr := kv.NewLoader(ldr, provider.NewDefaultDepProvider().GetFieldValidator())
@@ -132,6 +129,28 @@ func setData(rn *yaml.RNode, args *ResourceArgs) error {
 		}
 	}
 	return nil
+}
+
+// copy from sigs.k8s.io/kustomize/api/internal/generators/utils.go
+func makeValidatedDataMap(
+	ldr ifc.KvLoader, name string, sources types.KvPairSources) (map[string]string, error) {
+	pairs, err := ldr.Load(sources)
+	if err != nil {
+		return nil, errors.WrapPrefix(err, "loading KV pairs", 0)
+	}
+	knownKeys := make(map[string]string)
+	for _, p := range pairs {
+		// legal key: alphanumeric characters, '-', '_' or '.'
+		if err := ldr.Validator().ErrIfInvalidKey(p.Key); err != nil {
+			return nil, err
+		}
+		if _, ok := knownKeys[p.Key]; ok {
+			return nil, errors.Errorf(
+				"configmap  %s illegally repeats the key `%s`", name, p.Key)
+		}
+		knownKeys[p.Key] = p.Value
+	}
+	return knownKeys, nil
 }
 
 func setImmutable(
@@ -196,6 +215,27 @@ func setIncludedExcludedNs(rn *yaml.RNode, v []string, inExNsPath []string) erro
 		return err
 	}
 	return nil
+}
+
+// newNameListRNode returns a new List *RNode
+// containing the provided scalar values prefixed with a string of name.
+func newNameListRNode(values ...string) *yaml.RNode {
+	matchSeq := &yaml.Node{Kind: yaml.SequenceNode}
+	for _, v := range values {
+		node := &yaml.Node{
+			Kind: yaml.MappingNode,
+		}
+		node.Content = append(node.Content, &yaml.Node{
+			Kind:  yaml.ScalarNode,
+			Value: nameField,
+		}, &yaml.Node{
+			Kind:  yaml.ScalarNode,
+			Value: v,
+		})
+		matchSeq.Content = append(matchSeq.Content, node)
+
+	}
+	return yaml.NewRNode(matchSeq)
 }
 
 // resourcedistribution 默认 allNamespaces为false
