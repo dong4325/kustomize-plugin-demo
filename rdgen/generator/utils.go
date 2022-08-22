@@ -1,21 +1,16 @@
 package generator
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sort"
-	"strconv"
-	"strings"
-
-	"encoding/base64"
 	"github.com/go-errors/errors"
-	"sigs.k8s.io/kustomize/api/ifc"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/kustomize/api/kv"
 	"sigs.k8s.io/kustomize/api/loader"
 	"sigs.k8s.io/kustomize/api/provider"
 	"sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
-	"unicode/utf8"
+	"sort"
+	"strconv"
 )
 
 func makeBaseNode(meta *types.ObjectMeta) (*yaml.RNode, error) {
@@ -106,8 +101,8 @@ func setLabelsOrAnnotations(
 
 // TODO 看懂代码
 func setData(rn *yaml.RNode, args *ResourceArgs) error {
+	// 尝试使用 BASE 后也可以使用
 
-	// TODO 测试使用BASE后是否还能使用？
 	ldr, err := loader.NewLoader(loader.RestrictionRootOnly,
 		"./", filesys.MakeFsOnDisk())
 	kvLdr := kv.NewLoader(ldr, provider.NewDefaultDepProvider().GetFieldValidator())
@@ -118,7 +113,7 @@ func setData(rn *yaml.RNode, args *ResourceArgs) error {
 	}
 
 	if args.ResourceKind == "ConfigMap" {
-		if err = loadMapIntoConfigMapData2(m, rn); err != nil {
+		if err = loadMapIntoConfigMapData(m, rn); err != nil {
 			return err
 		}
 	} else {
@@ -126,8 +121,9 @@ func setData(rn *yaml.RNode, args *ResourceArgs) error {
 		if args.Type != "" {
 			t = args.Type
 		}
-		if _, err := rn.Pipe(yaml.PathGetter{Path: resourcePath, Create: yaml.MappingNode},
-			yaml.FieldSetter{Name: typeField, Value: yaml.NewStringRNode(t)}); err != nil {
+		_, err := rn.Pipe(yaml.PathGetter{Path: resourcePath, Create: yaml.MappingNode},
+			yaml.FieldSetter{Name: typeField, Value: yaml.NewStringRNode(t)})
+		if err != nil {
 			return err
 		}
 
@@ -160,130 +156,11 @@ func setImmutable(
 	return nil
 }
 
-// NewListRNode returns a new List *RNode containing the provided scalar values.
-func newNameListRNode(values ...string) *yaml.RNode {
-
-	matchSeq := &yaml.Node{Kind: yaml.SequenceNode}
-	for _, v := range values {
-		node := &yaml.Node{
-			Kind: yaml.MappingNode,
-		}
-		node.Content = append(node.Content, &yaml.Node{
-			Kind:  yaml.ScalarNode,
-			Value: nameField,
-		}, &yaml.Node{
-			Kind:  yaml.ScalarNode,
-			Value: v,
-		})
-		matchSeq.Content = append(matchSeq.Content, node)
-
-	}
-	return yaml.NewRNode(matchSeq)
-}
-
-func makeValidatedDataMap(
-	ldr ifc.KvLoader, name string, sources types.KvPairSources) (map[string]string, error) {
-	pairs, err := ldr.Load(sources)
-	if err != nil {
-		return nil, errors.WrapPrefix(err, "loading KV pairs", 0)
-	}
-	knownKeys := make(map[string]string)
-	for _, p := range pairs {
-		// legal key: alphanumeric characters, '-', '_' or '.'
-		if err := ldr.Validator().ErrIfInvalidKey(p.Key); err != nil {
-			return nil, err
-		}
-		if _, ok := knownKeys[p.Key]; ok {
-			return nil, errors.Errorf(
-				"configmap %s illegally repeats the key `%s`", name, p.Key)
-		}
-		knownKeys[p.Key] = p.Value
-	}
-	return knownKeys, nil
-}
-
-func encodeBase64(s string) string {
-	const lineLen = 70
-	encLen := base64.StdEncoding.EncodedLen(len(s))
-	lines := encLen/lineLen + 1
-	buf := make([]byte, encLen*2+lines)
-	in := buf[0:encLen]
-	out := buf[encLen:]
-	base64.StdEncoding.Encode(in, []byte(s))
-	k := 0
-	for i := 0; i < len(in); i += lineLen {
-		j := i + lineLen
-		if j > len(in) {
-			j = len(in)
-		}
-		k += copy(out[k:], in[i:j])
-		if lines > 1 {
-			out[k] = '\n'
-			k++
-		}
-	}
-	return string(out[:k])
-}
-
-func makeConfigMapValueRNode(s string) (field string, rN *yaml.RNode) {
-	yN := &yaml.Node{Kind: yaml.ScalarNode}
-	yN.Tag = yaml.NodeTagString
-	if utf8.ValidString(s) {
-		field = yaml.DataField
-		yN.Value = s
-	} else {
-		field = yaml.BinaryDataField
-		yN.Value = encodeBase64(s)
-	}
-	if strings.Contains(yN.Value, "\n") {
-		yN.Style = yaml.LiteralStyle
-	}
-	return field, yaml.NewRNode(yN)
-}
-
-func loadMapIntoSecretData(m map[string]string, rn *yaml.RNode) error {
-	mapNode, err := rn.Pipe(yaml.LookupCreate(yaml.MappingNode, append(resourcePath, yaml.DataField)...))
-	if err != nil {
-		return err
-	}
-	for _, k := range yaml.SortedMapKeys(m) {
-		vrN := makeSecretValueRNode(m[k])
-		if _, err := mapNode.Pipe(yaml.SetField(k, vrN)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func loadMapIntoConfigMapData2(m map[string]string, rn *yaml.RNode) error {
-	for _, k := range yaml.SortedMapKeys(m) {
-		fldName, vrN := makeConfigMapValueRNode(m[k])
-		if _, err := rn.Pipe(
-			yaml.LookupCreate(yaml.MappingNode, append(resourcePath, fldName)...),
-			yaml.SetField(k, vrN)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func makeSecretValueRNode(s string) *yaml.RNode {
-	yN := &yaml.Node{Kind: yaml.ScalarNode}
-	// Purposely don't use YAML tags to identify the data as being plain text or
-	// binary.  It kubernetes Secrets the values in the `data` map are expected
-	// to be base64 encoded, and in ConfigMaps that same can be said for the
-	// values in the `binaryData` field.
-	yN.Tag = yaml.NodeTagString
-	yN.Value = encodeBase64(s)
-	if strings.Contains(yN.Value, "\n") {
-		yN.Style = yaml.LiteralStyle
-	}
-	return yaml.NewRNode(yN)
-}
-
 func setTargets(rn *yaml.RNode, args *TargetsArgs) error {
-	if args == nil {
-		return nil
+	if args.AllNamespaces == false && args.IncludedNamespaces == nil && args.ExcludedNamespaces == nil &&
+		(args.NamespaceLabelSelector == nil ||
+			args.NamespaceLabelSelector.MatchLabels == nil && args.NamespaceLabelSelector.MatchExpressions == nil) {
+		return errors.Errorf("The targets field of the ResourceDistribution cannot be empty")
 	}
 
 	err := setIncludedExcludedNs(rn, args.IncludedNamespaces, includedNamespacesPath)
@@ -373,55 +250,74 @@ func setMatchLabels(rn *yaml.RNode, matchLabels map[string]string) error {
 	return nil
 }
 
-func setMatchExpressions(rn *yaml.RNode, matchExpressions []metav1.LabelSelectorRequirement) error {
-	if matchExpressions == nil {
+// TODO 处理异常
+func setMatchExpressions(rn *yaml.RNode, args []metav1.LabelSelectorRequirement) error {
+	if args == nil {
 		return nil
 	}
-	matchSeq := &yaml.Node{Kind: yaml.SequenceNode}
 
-	// set matchExpressions
-	for _, req := range matchExpressions {
-		node := &yaml.Node{
+	matchExpList := &yaml.Node{Kind: yaml.SequenceNode}
+	for _, matchExpArgs := range args {
+		matchExpElement := &yaml.Node{
 			Kind: yaml.MappingNode,
 		}
 
-		node.Content = append(node.Content, &yaml.Node{
-			Kind:  yaml.ScalarNode,
-			Value: keyField,
+		// append key for matchExpression
+		if matchExpArgs.Key == "" {
+			return errors.Errorf("the field " +
+				"ResourceDistribution.targets.namespaceLabelSelector.matchExpressions.key cannot be empty")
+		}
+		matchExpElement.Content = append(matchExpElement.Content, &yaml.Node{
+			Kind: yaml.ScalarNode, Value: keyField,
 		}, &yaml.Node{
-			Kind:  yaml.ScalarNode,
-			Value: req.Key,
-		})
-		node.Content = append(node.Content, &yaml.Node{
-			Kind:  yaml.ScalarNode,
-			Value: operatorField,
-		}, &yaml.Node{
-			Kind:  yaml.ScalarNode,
-			Value: string(req.Operator),
+			Kind: yaml.ScalarNode, Value: matchExpArgs.Key,
 		})
 
-		seq := &yaml.Node{Kind: yaml.SequenceNode}
-		sort.Strings(req.Values)
-		for _, val := range req.Values {
-			seq.Content = append(seq.Content, &yaml.Node{
-				Kind:  yaml.ScalarNode,
-				Value: val,
+		// append operator for matchExpression
+		if matchExpArgs.Operator != metav1.LabelSelectorOpIn &&
+			matchExpArgs.Operator != metav1.LabelSelectorOpNotIn &&
+			matchExpArgs.Operator != metav1.LabelSelectorOpExists &&
+			matchExpArgs.Operator != metav1.LabelSelectorOpDoesNotExist {
+			return errors.Errorf("the field " +
+				"ResourceDistribution.targets.namespaceLabelSelector.matchExpressions.operator is invalid")
+		}
+		matchExpElement.Content = append(matchExpElement.Content, &yaml.Node{
+			Kind: yaml.ScalarNode, Value: operatorField,
+		}, &yaml.Node{
+			Kind: yaml.ScalarNode, Value: string(matchExpArgs.Operator),
+		})
+
+		// append values for matchExpression
+		if matchExpArgs.Values == nil {
+			return errors.Errorf("the field " +
+				"ResourceDistribution.targets.namespaceLabelSelector.matchExpressions.values cannot be empty")
+		}
+		valSeq := &yaml.Node{Kind: yaml.SequenceNode}
+		sort.Strings(matchExpArgs.Values)
+		for _, val := range matchExpArgs.Values {
+			//
+			if val == "" {
+				return errors.Errorf("the element of field " +
+					"ResourceDistribution.targets.namespaceLabelSelector.matchExpressions.values cannot be empty")
+			}
+			valSeq.Content = append(valSeq.Content, &yaml.Node{
+				Kind: yaml.ScalarNode, Value: val,
 			})
 		}
+		matchExpElement.Content = append(matchExpElement.Content, &yaml.Node{
+			Kind: yaml.ScalarNode, Value: valuesField,
+		}, valSeq)
 
-		node.Content = append(node.Content, &yaml.Node{
-			Kind:  yaml.ScalarNode,
-			Value: valuesField,
-		}, seq)
+		// element is added to the list
+		matchExpList.Content = append(matchExpList.Content, matchExpElement)
+	}
 
-		matchSeq.Content = append(matchSeq.Content, node)
+	_, err := rn.Pipe(
+		yaml.PathGetter{Path: NamespaceLabelSelectorPath, Create: yaml.MappingNode},
+		yaml.FieldSetter{Name: matchExpressionsField, Value: yaml.NewRNode(matchExpList)})
+	if err != nil {
+		return err
 	}
-	if matchExpressions != nil {
-		_, err := rn.Pipe(yaml.PathGetter{Path: NamespaceLabelSelectorPath, Create: yaml.MappingNode},
-			yaml.FieldSetter{Name: matchExpressionsField, Value: yaml.NewRNode(matchSeq)})
-		if err != nil {
-			return err
-		}
-	}
+
 	return nil
 }

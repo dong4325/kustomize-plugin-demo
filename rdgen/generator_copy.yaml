@@ -1,0 +1,73 @@
+apiVersion: config.kubernetes.io/v1
+kind: ResourceList
+items:
+  - apiVersion: myDevOpsTeam
+    kind: SillyConfigMapGenerator
+    metadata:
+      annotations:
+        config.kubernetes.io/function: "exec: \n path: ./plugins/silly-generator.sh \n"
+        config.kubernetes.io/local-config: 'true'
+        config.kubernetes.io/index: '0'
+        internal.config.kubernetes.io/index: '0'
+        internal.config.kubernetes.io/annotations-migration-resource-id: '0'
+        internal.config.kubernetes.io/id: '1'
+        config.k8s.io/id: '1'
+      name: rdname
+    resource:
+      resourceKind: ConfigMap
+      resourceName: cmname
+      files:
+        - file.properties
+      literals:
+        - JAVA_HOME=/opt/java/jdk
+      resourceOptions:
+        annotations:
+          dashboard: "1"
+        disableNameSuffixHash: true
+        immutable: true
+    options:
+      labels:
+        app.kubernetes.io/name: "app1"
+    targets:
+      includedNamespaces:
+        - ns-1
+      namespaceLabelSelector:
+        matchLabels:
+          group: "test"
+functionConfig:
+  apiVersion: myDevOpsTeam
+  kind: SillyConfigMapGenerator
+  metadata:
+    annotations:
+      config.kubernetes.io/function: "exec: \n path: ./plugins/silly-generator.sh \n"
+      config.kubernetes.io/local-config: 'true'
+    name: rdname
+  resource:
+    resourceKind: Secret
+    resourceName: cmname
+    files:
+      - file.properties
+    literals:
+      - JAVA_HOME=/opt/java/jdk
+    resourceOptions:
+      annotations:
+        dashboard: "1"
+      disableNameSuffixHash: true
+      immutable: true
+  options:
+    labels:
+      app.kubernetes.io/name: "app1"
+  targets:
+    allNamespaces: true
+    includedNamespaces:
+      - ns-1
+      - ns-2
+    namespaceLabelSelector:
+      matchLabels:
+        group: "test"
+      matchExpressions:
+        - key: exc
+          operator: NotIn
+          values:
+            - abc
+            - e

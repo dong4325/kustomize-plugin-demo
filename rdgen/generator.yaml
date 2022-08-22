@@ -58,10 +58,6 @@ functionConfig:
     labels:
       app.kubernetes.io/name: "app1"
   targets:
-    allNamespaces: true
-    includedNamespaces:
-      - ns-1
-      - ns-2
     namespaceLabelSelector:
       matchLabels:
         group: "test"
