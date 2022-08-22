@@ -113,7 +113,7 @@ func setData(rn *yaml.RNode, args *ResourceArgs) error {
 	}
 
 	if args.ResourceKind == "ConfigMap" {
-		if err = loadMapIntoConfigMapData(m, rn); err != nil {
+		if err = rn.LoadMapIntoConfigMapData(m); err != nil {
 			return err
 		}
 	} else {
@@ -127,7 +127,7 @@ func setData(rn *yaml.RNode, args *ResourceArgs) error {
 			return err
 		}
 
-		if err = loadMapIntoSecretData(m, rn); err != nil {
+		if err = rn.LoadMapIntoSecretData(m); err != nil {
 			return err
 		}
 	}
